@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import { isAuthenticatedAtom } from "@/features/auth/application/selectors/authSelectors";
-import { createBoardPost } from "@/features/board/infrastructure/api/boardApi";
+import { fetchBoardPost, updateBoardPost } from "@/features/board/infrastructure/api/boardApi";
 
-export function useBoardCreate() {
+type LoadState = "LOADING" | "READY" | "ERROR";
+
+export function useBoardEdit(postId: number) {
   const [isAuthenticated] = useAtom(isAuthenticatedAtom);
   const router = useRouter();
 
+  const [loadState, setLoadState] = useState<LoadState>("LOADING");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,6 +24,20 @@ export function useBoardCreate() {
     }
   }, [isAuthenticated, router]);
 
+  useEffect(() => {
+    setLoadState("LOADING");
+
+    fetchBoardPost(postId)
+      .then((post) => {
+        setTitle(post.title);
+        setContent(post.content);
+        setLoadState("READY");
+      })
+      .catch(() => {
+        setLoadState("ERROR");
+      });
+  }, [postId]);
+
   async function submit() {
     if (!title.trim() || !content.trim()) {
       setError("제목과 본문을 모두 입력해주세요.");
@@ -31,14 +48,14 @@ export function useBoardCreate() {
     setError(null);
 
     try {
-      const result = await createBoardPost(title.trim(), content.trim());
-      router.push(`/board/read/${result.board_id}`);
+      await updateBoardPost(postId, title.trim(), content.trim());
+      router.push(`/board/read/${postId}`);
     } catch {
-      setError("게시물 작성에 실패했습니다. 다시 시도해주세요.");
+      setError("게시물 수정에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  return { title, setTitle, content, setContent, isSubmitting, error, submit };
+  return { loadState, title, setTitle, content, setContent, isSubmitting, error, submit };
 }

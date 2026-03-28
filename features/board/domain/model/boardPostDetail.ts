@@ -4,4 +4,5 @@ export interface BoardPostDetail {
   content: string;
   nickname: string;
   createdAt: string;
+  updatedAt: string;
 }

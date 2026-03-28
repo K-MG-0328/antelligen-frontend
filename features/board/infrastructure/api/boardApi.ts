@@ -22,7 +22,38 @@ export async function fetchBoardList(page: number, size: number): Promise<{ post
 }
 
 export async function fetchBoardPost(postId: number): Promise<BoardPostDetail> {
-  const { data } = await httpClient<ApiResponse<BoardDetailResponse>>(`/api/v1/board/read/${postId}`);
+  try {
+    const { data } = await httpClient<ApiResponse<BoardDetailResponse>>(`/api/v1/board/read/${postId}`);
+
+    return {
+      postId: data.board_id,
+      title: data.title,
+      content: data.content,
+      nickname: data.nickname,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("404")) {
+      const notFound = new Error("게시물을 찾을 수 없습니다.");
+      notFound.name = "NotFoundError";
+      throw notFound;
+    }
+    throw err;
+  }
+}
+
+export async function deleteBoardPost(postId: number): Promise<void> {
+  await httpClient<ApiResponse<null>>(`/api/v1/board/delete/${postId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function updateBoardPost(postId: number, title: string, content: string): Promise<BoardPostDetail> {
+  const { data } = await httpClient<ApiResponse<BoardDetailResponse>>(`/api/v1/board/edit/${postId}`, {
+    method: "PUT",
+    body: JSON.stringify({ title, content }),
+  });
 
   return {
     postId: data.board_id,
@@ -30,6 +61,7 @@ export async function fetchBoardPost(postId: number): Promise<BoardPostDetail> {
     content: data.content,
     nickname: data.nickname,
     createdAt: data.created_at,
+    updatedAt: data.updated_at,
   };
 }
 
