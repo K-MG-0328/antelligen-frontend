@@ -8,8 +8,9 @@ const menuItems = [
   { label: "Home", href: "/" },
   { label: "Board", href: "/board" },
   { label: "Youtube", href: "/youtube" },
-  { label: "주식 추천", href: "/stock-recommendation" },
   { label: "뉴스", href: "/news" },
+  { label: "주식 추천", href: "/stock-recommendation" },
+  { label: "투자", href: "/stock" },
 ];
 
 interface NavbarProps {
