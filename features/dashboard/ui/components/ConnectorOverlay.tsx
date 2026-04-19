@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, type RefObject } from "react";
 import { useAtomValue } from "jotai";
-import { selectedEventAtom } from "@/features/dashboard/application/atoms/economicEventAtom";
+import { selectedTimelineEventAtom } from "@/features/dashboard/application/atoms/timelineAtom";
 import { selectedBarTimeAtom } from "@/features/dashboard/application/atoms/selectedBarAtom";
 import { chartApiAtom, chartContainerAtom } from "@/features/dashboard/application/atoms/chartApiAtom";
 import { periodAtom } from "@/features/dashboard/application/atoms/periodAtom";
@@ -23,53 +23,49 @@ export default function ConnectorOverlay({ wrapperRef }: ConnectorOverlayProps) 
   const svgRef = useRef<SVGSVGElement>(null);
   const [line, setLine] = useState<Line | null>(null);
 
-  const selectedEvent = useAtomValue(selectedEventAtom);
+  const selectedTimelineEvent = useAtomValue(selectedTimelineEventAtom);
   const selectedBarTime = useAtomValue(selectedBarTimeAtom);
   const chartApi = useAtomValue(chartApiAtom);
   const chartContainer = useAtomValue(chartContainerAtom);
   const period = useAtomValue(periodAtom);
 
   const recalculate = useCallback(() => {
-    if (!selectedEvent || !selectedBarTime || !chartApi || !chartContainer || !wrapperRef.current) {
+    if (!selectedTimelineEvent || !selectedBarTime || !chartApi || !chartContainer || !wrapperRef.current) {
       setLine(null);
       return;
     }
 
     const wrapperRect = wrapperRef.current.getBoundingClientRect();
 
-    // 선택된 bar time으로 직접 x 좌표 계산
     const chartX = chartApi.timeScale().timeToCoordinate(selectedBarTime as Time);
     if (chartX === null) {
       setLine(null);
       return;
     }
 
-    // 마커가 차트 가시 영역 밖이면 선 숨김
     if (chartX < 0 || chartX > chartContainer.clientWidth) {
       setLine(null);
       return;
     }
 
-    // 차트 컨테이너의 wrapper 기준 상대 위치
     const chartRect = chartContainer.getBoundingClientRect();
     const markerX = chartRect.left - wrapperRect.left + chartX;
-    const markerY = chartRect.bottom - wrapperRect.top; // 차트 하단
+    const markerY = chartRect.bottom - wrapperRect.top;
 
-    // 타임라인 아이템 DOM 좌표
     const itemEl = wrapperRef.current.querySelector<HTMLElement>(
-      `[data-event-id="${selectedEvent.id}"]`
+      `[data-history-event-id="${selectedTimelineEvent.idx}"]`
     );
     if (!itemEl) {
       setLine(null);
       return;
     }
 
-    // 패널이 타임라인 수평 스크롤 영역 밖이면 선 숨김
-    const scrollContainer = itemEl.closest('.overflow-x-auto') as HTMLElement | null;
+    // 수직 스크롤 영역 밖이면 선 숨김
+    const scrollContainer = itemEl.closest('.overflow-y-auto') as HTMLElement | null;
     if (scrollContainer) {
       const scrollRect = scrollContainer.getBoundingClientRect();
       const elRect = itemEl.getBoundingClientRect();
-      if (elRect.right < scrollRect.left || elRect.left > scrollRect.right) {
+      if (elRect.bottom < scrollRect.top || elRect.top > scrollRect.bottom) {
         setLine(null);
         return;
       }
@@ -79,17 +75,12 @@ export default function ConnectorOverlay({ wrapperRef }: ConnectorOverlayProps) 
     const itemCenterX = itemRect.left + itemRect.width / 2 - wrapperRect.left;
     const itemY = itemRect.top - wrapperRect.top;
 
-    setLine({
-      x1: markerX,
-      y1: markerY,
-      x2: itemCenterX,
-      y2: itemY,
-    });
-  }, [selectedEvent, selectedBarTime, chartApi, chartContainer, wrapperRef]);
+    setLine({ x1: markerX, y1: markerY, x2: itemCenterX, y2: itemY });
+  }, [selectedTimelineEvent, selectedBarTime, chartApi, chartContainer, wrapperRef]);
 
   // 선택 이벤트 / 차트 준비 상태 변경 시 좌표 재계산 (double RAF로 레이아웃 완료 후 실행)
   useEffect(() => {
-    if (!selectedEvent) {
+    if (!selectedTimelineEvent) {
       setLine(null);
       return;
     }
@@ -107,7 +98,7 @@ export default function ConnectorOverlay({ wrapperRef }: ConnectorOverlayProps) 
       cancelAnimationFrame(raf2);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEvent, selectedBarTime, chartApi, period]);
+  }, [selectedTimelineEvent, selectedBarTime, chartApi, period]);
 
   // 차트 줌/패닝 시 좌표 재계산
   useEffect(() => {
@@ -116,7 +107,7 @@ export default function ConnectorOverlay({ wrapperRef }: ConnectorOverlayProps) 
     return () => chartApi.timeScale().unsubscribeVisibleLogicalRangeChange(recalculate);
   }, [chartApi, recalculate]);
 
-  // 타임라인 수평 스크롤 시 좌표 재계산 (capture로 자식 scroll 이벤트 감지)
+  // 수직 스크롤 시 좌표 재계산 (capture로 자식 scroll 이벤트 감지)
   useEffect(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
@@ -135,7 +126,7 @@ export default function ConnectorOverlay({ wrapperRef }: ConnectorOverlayProps) 
 
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEvent, selectedBarTime, chartApi, period]);
+  }, [selectedTimelineEvent, selectedBarTime, chartApi, period]);
 
   if (!line) return null;
 
