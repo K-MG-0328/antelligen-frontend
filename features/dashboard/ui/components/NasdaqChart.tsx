@@ -22,11 +22,16 @@ import { periodAtom } from "@/features/dashboard/application/atoms/periodAtom";
 import { tickerAtom } from "@/features/dashboard/application/atoms/tickerAtom";
 import { companyNameAtom } from "@/features/dashboard/application/atoms/companyNameAtom";
 import { chartApiAtom, chartContainerAtom } from "@/features/dashboard/application/atoms/chartApiAtom";
+import { anomalyBarsAtom } from "@/features/dashboard/application/atoms/anomalyBarsAtom";
 import { useNasdaqChart } from "@/features/dashboard/application/hooks/useNasdaqChart";
+import { useAnomalyBars } from "@/features/dashboard/application/hooks/useAnomalyBars";
 import ChartSkeleton from "@/features/dashboard/ui/components/skeletons/ChartSkeleton";
 import PeriodTabs from "@/features/dashboard/ui/components/PeriodTabs";
 
 const MARKER_COLOR_SELECTED = "#a855f7";
+// 한국식: 상승 = 빨강, 하락 = 파랑 (ADR-0001 §4 결정)
+const ANOMALY_COLOR_UP = "#ef4444";
+const ANOMALY_COLOR_DOWN = "#3b82f6";
 
 export default function NasdaqChart() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -34,9 +39,12 @@ export default function NasdaqChart() {
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
 
+  useAnomalyBars();
+
   const nasdaqState = useAtomValue(nasdaqAtom);
   const economicEventState = useAtomValue(economicEventAtom);
   const timelineState = useAtomValue(timelineAtom);
+  const anomalyBarsState = useAtomValue(anomalyBarsAtom);
   const selectedBarTime = useAtomValue(selectedBarTimeAtom);
   const period = useAtomValue(periodAtom);
   const ticker = useAtomValue(tickerAtom);
@@ -185,21 +193,42 @@ export default function NasdaqChart() {
     };
   }, [nasdaqState, setChartApi, setChartContainer]);
 
-  // 마커 바인딩 — 선택된 bar에만 마커 표시 (연봉 제외)
+  // 마커 바인딩 — 이상치 봉(★) + 선택된 봉(●) 병합
   useEffect(() => {
     if (!markersRef.current) return;
-    if (period === "1Y" || !selectedBarTime) {
-      markersRef.current.setMarkers([]);
-      return;
+
+    const markers: SeriesMarker<Time>[] = [];
+
+    // 1) 이상치 봉 마커 — ★ 표시 + 한국식 색 (up=빨강 / down=파랑)
+    if (anomalyBarsState.status === "SUCCESS") {
+      for (const ev of anomalyBarsState.events) {
+        const isUp = ev.direction === "up";
+        markers.push({
+          time: ev.date as Time,
+          position: isUp ? "aboveBar" : "belowBar",
+          shape: isUp ? "arrowDown" : "arrowUp",
+          color: isUp ? ANOMALY_COLOR_UP : ANOMALY_COLOR_DOWN,
+          size: 1,
+          text: "★",
+        });
+      }
     }
-    markersRef.current.setMarkers([{
-      time: selectedBarTime as Time,
-      position: "aboveBar" as const,
-      shape: "circle" as const,
-      color: MARKER_COLOR_SELECTED,
-      size: 1,
-    }]);
-  }, [selectedBarTime, period]);
+
+    // 2) 사용자가 선택한 봉 — 보라 원 하이라이트
+    if (selectedBarTime) {
+      markers.push({
+        time: selectedBarTime as Time,
+        position: "aboveBar",
+        shape: "circle",
+        color: MARKER_COLOR_SELECTED,
+        size: 1,
+      });
+    }
+
+    // lightweight-charts 는 time 오름차순으로 정렬된 markers 를 요구
+    markers.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    markersRef.current.setMarkers(markers);
+  }, [anomalyBarsState, selectedBarTime]);
 
   // 패널 선택 시 해당 bar로 차트 스크롤 — bar 인덱스 기준으로 가운데 정렬
   useEffect(() => {
