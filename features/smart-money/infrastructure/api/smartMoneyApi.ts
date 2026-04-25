@@ -48,7 +48,7 @@ export async function fetchConcentratedBuying(days: ConcentratedBuyingDays): Pro
   return data.items.map((item) => ({
     stockName: item.stock_name,
     stockCode: item.stock_code,
-    foreignerNetBuy: item.foreigner_net_buy,
+    foreignerNetBuy: item.foreign_net_buy,
     institutionNetBuy: item.institution_net_buy,
     concentrationScore: item.concentration_score,
   }));
