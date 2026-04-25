@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAtom } from "jotai";
 import { newsAtom } from "@/features/news/application/atoms/newsAtom";
-import { newsCommand } from "@/features/news/application/commands/newsCommand";
 import { authAtom } from "@/features/auth/application/atoms/authAtom";
-
-const PAGE_SIZE = 10;
+import { getWatchlistNewsFeed } from "@/features/news/infrastructure/api/newsApi";
+import type { NewsArticle } from "@/features/news/domain/model/newsArticle";
 
 export function useNewsList() {
   const [newsState, setNewsState] = useAtom(newsAtom);
   const [authState] = useAtom(authAtom);
-  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (authState.status === "LOADING") return;
@@ -22,18 +20,30 @@ export function useNewsList() {
 
     setNewsState({ status: "LOADING" });
 
-    newsCommand.FETCH_NEWS_PAGE({ type: "FETCH_NEWS_PAGE", keyword: "주식", page, pageSize: PAGE_SIZE })
-      .then(({ articles, page: currentPage, totalPages, totalCount }) => {
-        setNewsState({ status: "SUCCESS", articles, page: currentPage, totalPages, totalCount });
+    getWatchlistNewsFeed()
+      .then((feed) => {
+        const articles: NewsArticle[] = feed.items.map((item, index) => ({
+          newsId: `feed-${index}`,
+          title: item.title,
+          content: item.description ?? "",
+          source: item.stock_name ?? "",
+          url: item.url,
+          publishedAt: item.published_at ?? "",
+          stockName: item.stock_name ?? undefined,
+        }));
+        setNewsState({
+          status: "SUCCESS",
+          articles,
+          page: 1,
+          totalPages: 1,
+          totalCount: articles.length,
+          isWatchlistFeed: feed.has_watchlist,
+        });
       })
       .catch(() => {
         setNewsState({ status: "ERROR", message: "뉴스를 불러오는데 실패했습니다." });
       });
-  }, [page, authState.status, setNewsState]);
+  }, [authState.status, setNewsState]);
 
-  function goToPage(nextPage: number) {
-    setPage(nextPage);
-  }
-
-  return { newsState, page, goToPage };
+  return { newsState, page: 1, goToPage: () => {} };
 }
